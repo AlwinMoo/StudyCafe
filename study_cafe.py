@@ -1,8 +1,7 @@
 import os
 import discord
 from pymongo import MongoClient
-from discord.ext import commands
-import schedule
+from discord.ext import commands, tasks
 import time
 from datetime import datetime
 from dotenv import load_dotenv
@@ -63,6 +62,29 @@ async def changeprefix(ctx, prefix):
     # channel = client.get_channel(authorID)
     # await channel.send(f"<@{authorID}> remember to focus!")
 
+@client.event
+async def on_ready():
+    print("logged in")
+    send_reminder.start();
+
+@tasks.loop(minutes=1) 
+async def send_reminder():
+    # check goals collection
+    # if user is due for a reminder
+    # send reminder
+    # else do nothing
+
+    docs = collection_goals.find();
+    for doc in docs:
+        if doc["level"] == 2:
+            now = datetime.now()
+            # if time is 30 minutes past 
+            if (now - doc["start_time"]).total_seconds() % 1800 == 0:
+                user_id = doc["user"]
+                user = await client.fetch_user(user_id);
+                await user.send("<@" + str(user_id) + "> reminder to focus, are you on track?")
+
+
 @client.command()
 async def startsession(ctx):
     embed = discord.Embed(title="Session Start", color=embed_colour, description="What are your goals for today? (Seperate your goals with commas and no space)")
@@ -117,11 +139,10 @@ async def startsession(ctx):
         if str(reaction.emoji) == "2️⃣":
             await ctx.send('Hard worker! We will check in with you every half an hour.')
             level = 2
-            #TODO ADD TIME TO REMINDER
-            #schedule.every(2).seconds.do(send_reminder)
             break
     
-    collection_goals.insert_one({"user":str(ctx.message.author.id), "guild": str(ctx.guild.id), "goals":goals_list, "level":level})
+    start_time = datetime.now();
+    collection_goals.insert_one({"user":str(ctx.message.author.id), "guild": str(ctx.guild.id), "goals":goals_list, "level":level, "start_time": start_time})
 
     msg = await ctx.send(f"<@{ctx.message.author.id}> has started their session!")
     await msg.add_reaction("💪")
@@ -136,7 +157,6 @@ async def startsession(ctx):
 
         if str(reaction.emoji) == "💪":
             msg = await ctx.channel.fetch_message(msg.id)
-            reaction_list = msg.reactions
             # Check our reactions on the message, get user list for the reaction, ignoring the bot
             for reactions in msg.reactions:
                 if str(reactions) == "💪":
@@ -151,7 +171,6 @@ async def startsession(ctx):
 
         if str(reaction.emoji) == "🌟":
             msg = await ctx.channel.fetch_message(msg.id)
-            reaction_list = msg.reactions
             # Check our reactions on the message, get user list for the reaction, ignoring the bot
             for reactions in msg.reactions:
                 if str(reactions) == "🌟":
@@ -238,6 +257,3 @@ async def endsession(ctx):
             break
 
 client.run(TOKEN)
-
-while True:
-    schedule.run_pending()
