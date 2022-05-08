@@ -1,8 +1,7 @@
 import os
 import discord
 from pymongo import MongoClient
-from discord.ext import commands
-import schedule
+from discord.ext import commands, tasks
 import time
 from datetime import datetime
 from dotenv import load_dotenv
@@ -63,6 +62,12 @@ async def changeprefix(ctx, prefix):
     # channel = client.get_channel(authorID)
     # await channel.send(f"<@{authorID}> remember to focus!")
 
+
+@tasks.loop(seconds=30) 
+async def send_reminder(user):
+    await user.send("<@{}> remember to focus!".format(user.id))
+
+
 @client.command()
 async def startsession(ctx):
     embed = discord.Embed(title="Session Start", color=embed_colour, description="What are your goals for today? (Seperate your goals with commas and no space)")
@@ -117,8 +122,7 @@ async def startsession(ctx):
         if str(reaction.emoji) == "2️⃣":
             await ctx.send('Hard worker! We will check in with you every half an hour.')
             level = 2
-            #TODO ADD TIME TO REMINDER
-            #schedule.every(2).seconds.do(send_reminder)
+            send_reminder.start(user=ctx.author)
             break
     
     collection_goals.insert_one({"user":str(ctx.message.author.id), "guild": str(ctx.guild.id), "goals":goals_list, "level":level})
@@ -136,7 +140,6 @@ async def startsession(ctx):
 
         if str(reaction.emoji) == "💪":
             msg = await ctx.channel.fetch_message(msg.id)
-            reaction_list = msg.reactions
             # Check our reactions on the message, get user list for the reaction, ignoring the bot
             for reactions in msg.reactions:
                 if str(reactions) == "💪":
@@ -151,7 +154,6 @@ async def startsession(ctx):
 
         if str(reaction.emoji) == "🌟":
             msg = await ctx.channel.fetch_message(msg.id)
-            reaction_list = msg.reactions
             # Check our reactions on the message, get user list for the reaction, ignoring the bot
             for reactions in msg.reactions:
                 if str(reactions) == "🌟":
@@ -238,6 +240,3 @@ async def endsession(ctx):
             break
 
 client.run(TOKEN)
-
-while True:
-    schedule.run_pending()
