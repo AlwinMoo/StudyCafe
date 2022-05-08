@@ -2,6 +2,9 @@ import os
 import discord
 from pymongo import MongoClient
 from discord.ext import commands
+import schedule
+import time
+from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,6 +20,9 @@ collection_goals = db.user_goals
 
 embed_colour = 0xFF5733
 
+now = datetime.now() # current date and time
+formatted_time = now.strftime("%H:%M")
+
 def get_prefix(client, message): ##first we define get_prefix
     # with open('prefixes.json', 'r') as f: ##we open and read the prefixes.json, assuming it's in the same file
     #     prefixes = json.load(f) #load the json as prefixes
@@ -30,39 +36,19 @@ def get_prefix(client, message): ##first we define get_prefix
 # intents.presences = False
 client = commands.Bot(command_prefix = (get_prefix),intents=discord.Intents.all(),)
 
-#client = discord.Client()
-
 @client.event
 async def on_guild_join(guild): #when the bot joins the guild
     str_record = {"_id": str(guild.id), "prefix": "sc!"}
     collection_prefixes.insert_one(str_record)
-    # with open('prefixes.json', 'r') as f: #read the prefix.json file
-    #     prefixes = json.load(f) #load the json file
-
-    # prefixes[str(guild.id)] = 'sc!'#default prefix
-
-    # with open('prefixes.json', 'w') as f: #write in the prefix.json "message.guild.id": "bl!"
-    #     json.dump(prefixes, f, indent=4) #the indent is to make everything look a bit neater
-
-    # with open('goals.json', 'w') as f:
-    #     parse = {str(guild.id):{}}
-    #     json.dump(parse, f, indent=4)
 
 @client.event
 async def on_guild_remove(guild): #when the bot is removed from the guild
     collection_prefixes.delete_many({"_id": str(guild.id)})
     collection_goals.delete_many({"guild": str(guild.id)})
-    # with open('prefixes.json', 'r') as f: #read the file
-    #     prefixes = json.load(f)
-
-    # prefixes.pop(str(guild.id)) #find the guild.id that bot was removed from
-
-    # with open('prefixes.json', 'w') as f: #deletes the guild.id as well as its prefix
-    #     json.dump(prefixes, f, indent=4)
 
 @client.command(pass_context=True)
 @commands.has_permissions(administrator=True) #ensure that only administrators can use this command
-async def changeprefix(ctx, prefix): #command: bl!changeprefix ...
+async def changeprefix(ctx, prefix):
     filter = { '_id': str(ctx.guild.id) }
  
     # Values to be updated.
@@ -71,15 +57,11 @@ async def changeprefix(ctx, prefix): #command: bl!changeprefix ...
     # Using update_one() method for single updation.
     collection_prefixes.update_one(filter, newvalues)
 
-    # with open('prefixes.json', 'r') as f:
-    #     prefixes = json.load(f)
-
-    # prefixes[str(ctx.guild.id)] = prefix
-
-    # with open('prefixes.json', 'w') as f: #writes the new prefix into the .json
-    #     json.dump(prefixes, f, indent=4)
-
-    # await ctx.send(f'Prefix changed to: {prefix}') #confirms the prefix it's been changed to
+#TODO IMPLEMENT SEND REMINDER
+#TODO CHECK WHO IS DUE FOR A REMINDER
+#async def send_reminder():
+    # channel = client.get_channel(authorID)
+    # await channel.send(f"<@{authorID}> remember to focus!")
 
 @client.command()
 async def startsession(ctx):
@@ -116,9 +98,6 @@ async def startsession(ctx):
 
     embed = discord.Embed(color=embed_colour, description=f"Fantastic! So you want to `{parse}` today.\nWhat level of checks do you want?\n1: mild, 2: normal")
     msg = await ctx.send(embed=embed)
-    # await ctx.send("Fantastic!")
-    # await ctx.send(f"So you want to `{parse}` today.")
-    # msg = await ctx.send(f"What level of checks do you want?\n 1: mild, 2: normal")
     
     await msg.add_reaction("1️⃣")
     await msg.add_reaction("2️⃣")
@@ -138,6 +117,8 @@ async def startsession(ctx):
         if str(reaction.emoji) == "2️⃣":
             await ctx.send('Hard worker! We will check in with you every half an hour.')
             level = 2
+            #TODO ADD TIME TO REMINDER
+            #schedule.every(2).seconds.do(send_reminder)
             break
     
     collection_goals.insert_one({"user":str(ctx.message.author.id), "guild": str(ctx.guild.id), "goals":goals_list, "level":level})
@@ -257,3 +238,6 @@ async def endsession(ctx):
             break
 
 client.run(TOKEN)
+
+while True:
+    schedule.run_pending()
