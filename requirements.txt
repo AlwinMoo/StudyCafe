@@ -1,4 +1,0 @@
-pymongo
-discord.py
-schedule
-dotenv
