@@ -22,27 +22,24 @@ embed_colour = 0xFF5733
 now = datetime.now() # current date and time
 formatted_time = now.strftime("%H:%M")
 
-def get_prefix(client, message): ##first we define get_prefix
-    # with open('prefixes.json', 'r') as f: ##we open and read the prefixes.json, assuming it's in the same file
-    #     prefixes = json.load(f) #load the json as prefixes
-    # return prefixes[str(message.guild.id)] #recieve the prefix for the guild id given
-    document = collection_prefixes.find_one({"_id": str(message.guild.id)})
+def get_prefix(client, message): #first we define get_prefix
+    document = collection_prefixes.find_one({"_id": str(message.guild.id)}) #find the infomation of the server via guild id
     return str(document["prefix"])
 
 # intents = discord.Intents(messages=True, guilds=True)
 # intents.reactions = True
 # intents.typing = False
 # intents.presences = False
-client = commands.Bot(command_prefix = (get_prefix),intents=discord.Intents.all(),)
+client = commands.Bot(command_prefix = (get_prefix),intents=discord.Intents.all(),) #TODO: intents will eventually have to be more specific if this bot gets widely used
 
 @client.event
 async def on_guild_join(guild): #when the bot joins the guild
-    str_record = {"_id": str(guild.id), "prefix": "sc!"}
+    str_record = {"_id": str(guild.id), "prefix": "sc!"} #creating default prefix and parse into db
     collection_prefixes.insert_one(str_record)
 
 @client.event
 async def on_guild_remove(guild): #when the bot is removed from the guild
-    collection_prefixes.delete_many({"_id": str(guild.id)})
+    collection_prefixes.delete_many({"_id": str(guild.id)}) #delete all data about the guild including the prefix
     collection_goals.delete_many({"guild": str(guild.id)})
 
 @client.command(pass_context=True)
@@ -51,19 +48,13 @@ async def changeprefix(ctx, prefix):
     filter = { '_id': str(ctx.guild.id) }
  
     # Values to be updated.
-    newvalues = { "$set": { 'prefix': prefix } }
+    newvalues = { "$set": { 'prefix': prefix } } #using the set command, change the prefix to given string
     
     # Using update_one() method for single updation.
     collection_prefixes.update_one(filter, newvalues)
 
-#TODO IMPLEMENT SEND REMINDER
-#TODO CHECK WHO IS DUE FOR A REMINDER
-#async def send_reminder():
-    # channel = client.get_channel(authorID)
-    # await channel.send(f"<@{authorID}> remember to focus!")
-
 @client.event
-async def on_ready():
+async def on_ready(): #give heads up that the bot is ready and the reminder check is starting
     print("logged in")
     send_reminder.start();
 
@@ -73,25 +64,30 @@ async def send_reminder():
     # if user is due for a reminder
     # send reminder
     # else do nothing
-
-    docs = collection_goals.find();
+    print("checking now")
+    docs = collection_goals.find()
     for doc in docs:
         if doc["level"] == 2:
             now = datetime.now()
             # if time is 30 minutes past 
             if (now - doc["start_time"]).total_seconds() % 1800 == 0:
                 user_id = doc["user"]
-                user = await client.fetch_user(user_id);
+                user = await client.fetch_user(user_id)
                 await user.send("<@" + str(user_id) + "> reminder to focus, are you on track?")
+                print(f"message sent to {user_id}")
 
 
 @client.command()
 async def startsession(ctx):
+    #important functions of the bot are sent in embedded messages
+    #replies are sent with normal messages
+
     embed = discord.Embed(title="Session Start", color=embed_colour, description="What are your goals for today? (Seperate your goals with commas and no space)")
     embed.set_thumbnail(url="https://64.media.tumblr.com/9bee9543abe86c30cc9b0920c9bdf6ef/tumblr_o908babgn51r4mmz8o1_500.jpg")
+    embed.set_footer(text="This bot will need permission to DM you. Please ensure that direct messages from server members are enabled")
     await ctx.send(embed=embed)
-    #await ctx.send("What are your goals for today? (Seperate your goals with commas)")
 
+    #checking if the user sent a sentence and not just a string of numbers
     def check(author):
         def inner_check(message): 
             if message.author != author:
@@ -101,12 +97,14 @@ async def startsession(ctx):
             else:
                 return True
         return inner_check
-                
+    
+    #wait for 30 secs before timing out
     msg = await client.wait_for("message", check=check(ctx.author), timeout=30)
 
-    goals_list = msg.content.split(",")
+    goals_list = msg.content.split(",") #split string by commas (NO SPACES) and create a list
     goals_list_len = len(goals_list)
 
+    #formatting list properly for string
     parse = ""
     i = 0
     for goal in goals_list:
@@ -118,12 +116,15 @@ async def startsession(ctx):
             parse += goal
         i += 1
 
+    #confirmation with user
     embed = discord.Embed(color=embed_colour, description=f"Fantastic! So you want to `{parse}` today.\nWhat level of checks do you want?\n1: mild, 2: normal")
     msg = await ctx.send(embed=embed)
     
     await msg.add_reaction("1️⃣")
     await msg.add_reaction("2️⃣")
 
+    #check if reactions are of either emoji
+    #do something within 30secs
     def check(reaction, user):
         return user == ctx.author and str(reaction.emoji) in ["1️⃣", "2️⃣"]
 
@@ -141,7 +142,8 @@ async def startsession(ctx):
             level = 2
             break
     
-    start_time = datetime.now();
+    #format and add data to server for persistance
+    start_time = datetime.now()
     collection_goals.insert_one({"user":str(ctx.message.author.id), "guild": str(ctx.guild.id), "goals":goals_list, "level":level, "start_time": start_time})
 
     msg = await ctx.send(f"<@{ctx.message.author.id}> has started their session!")
@@ -151,9 +153,11 @@ async def startsession(ctx):
     def check(reaction, user):
         return user == ctx.author and str(reaction.emoji) in ["💪", "🌟"]
 
+    #check if reactions are of either emoji
+    #do something within 30secs
     users=""
     while True:
-        reaction, user = await client.wait_for("reaction_add", timeout=5, check=check)
+        reaction, user = await client.wait_for("reaction_add", timeout=5, check=check) #TODO: change timeout to realistic number i.e. 60
 
         if str(reaction.emoji) == "💪":
             msg = await ctx.channel.fetch_message(msg.id)
@@ -202,7 +206,7 @@ async def endsession(ctx):
         return user == ctx.author and str(reaction.emoji) in ["✔️", "❌"]
 
     while True:
-            reaction, user = await client.wait_for("reaction_add", timeout=60, check=check)
+            reaction, user = await client.wait_for("reaction_add", timeout=60, check=check) #TODO: change timeout to realistic number i.e. 30
 
             if str(reaction.emoji) == "✔️":
                 await ctx.send('Awesome! Keep up the good work! Remember to get ample sleep, rest, and hydration.')
@@ -224,7 +228,7 @@ async def endsession(ctx):
 
     users=""
     while True:
-        reaction, user = await client.wait_for("reaction_add", timeout=5, check=check)
+        reaction, user = await client.wait_for("reaction_add", timeout=5, check=check) #TODO: change timeout to realistic number i.e. 60
 
         if str(reaction.emoji) == "🎉":
             msg = await ctx.channel.fetch_message(msg.id)
