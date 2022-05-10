@@ -64,7 +64,6 @@ async def send_reminder():
     # if user is due for a reminder
     # send reminder
     # else do nothing
-    print("checking now")
     docs = collection_goals.find()
     for doc in docs:
         if doc["level"] == 2:
@@ -74,7 +73,6 @@ async def send_reminder():
                 user_id = doc["user"]
                 user = await client.fetch_user(user_id)
                 await user.send("<@" + str(user_id) + "> reminder to focus, are you on track?")
-                print(f"message sent to {user_id}")
 
 
 @client.command()
