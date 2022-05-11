@@ -5,7 +5,6 @@ If you're using VS Code initialise according to [the vs code documentation](http
 
 ## Requirements
 
-- pymongo
+- pymongo, "pymongo[srv]"
 - discord.py
-- schedule
-- dotenv
+- python-dotenv
