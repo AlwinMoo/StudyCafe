@@ -69,7 +69,7 @@ async def send_reminder():
         if doc["level"] == 2:
             now = datetime.now()
             # if time is 30 minutes past 
-            if ((now - doc["start_time"]).total_seconds()//60) % 30 == 0:
+            if ((now - doc["start_time"]).total_seconds()//60) % 30 == 0 and (now - doc["start_time"]).total_seconds()//60 > 0:
                 user_id = doc["user"]
                 user = await client.fetch_user(user_id)
                 await user.send("<@" + str(user_id) + "> reminder to focus, are you on track?")
